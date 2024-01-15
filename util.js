@@ -513,29 +513,289 @@ function timer(myfun, speed) {
 
 // 删除文件和文件夹
 // 保留文件
-const stayFile = ["package.json", "README.md"];
-const delPath = async (path) => {
-  let files = [];
+const stayFile = ['package.json', 'README.md'];
+const delPath = async path => {
+    let files = [];
 
-  if (fs.existsSync(path)) {
-    files = fs.readdirSync(path);
+    if (fs.existsSync(path)) {
+        files = fs.readdirSync(path);
 
-    files.forEach(async (file) => {
-      let curPath = resolve(path, file);
+        files.forEach(async file => {
+            let curPath = resolve(path, file);
 
-      if (fs.statSync(curPath).isDirectory()) {
-        // recurse
-        if (file != "node_modules") await delPath(curPath);
-      } else {
-        // delete file
-        if (!stayFile.includes(file)) {
-          // 删除文件
-          fs.unlinkSync(curPath);
+            if (fs.statSync(curPath).isDirectory()) {
+                // recurse
+                if (file != 'node_modules') await delPath(curPath);
+            } else {
+                // delete file
+                if (!stayFile.includes(file)) {
+                    // 删除文件
+                    fs.unlinkSync(curPath);
+                }
+            }
+        });
+
+        // 删除文件夹
+        if (path != `${pkgPath}/easyest`) fs.rmdirSync(path);
+    }
+};
+
+// 获取用户IP
+const getUserIP = () => {
+    window.getIP = json => {
+        console.log(json.ip);
+    };
+    const script = document.createElement('script');
+    script.src = 'https://api.ipify.org?format=jsonp&callback=getIP';
+    document.body.append(script);
+};
+
+// 动态加载JS文件
+function loadJS(files, done) {
+    // 获取head标签
+    const head = document.getElementsByTagName('head')[0];
+    Promise.all(
+        files.map(file => {
+            return new Promise(resolve => {
+                // 创建script标签并添加到head
+                const s = document.createElement('script');
+                s.type = 'text/javascript';
+                s.async = true;
+                s.src = file;
+                // 监听load事件，如果加载完成则resolve
+                s.addEventListener('load', e => resolve(), false);
+                head.appendChild(s);
+            });
+        }),
+    ).then(done); // 所有均完成，执行用户的回调事件
+}
+
+/** 
+    功能同vue的watch
+    使用方法：
+            watch(
+                target,
+                (newVal, oldVal) => {
+                    console.log(newVal, oldVal);
+                },
+                {
+                    immediate: true,
+                    once: true
+                },
+            );
+    注意点：
+          1.只能监听对象
+          2.只能监听到对象的已存在的属性改变，不能监听直接赋值，不能监听增删属性
+*/
+function watch(target, cb, options) {
+    if (target == null || typeof target !== 'object') {
+        return;
+    }
+    let onceFlag = false;
+    let closeFlag = false;
+    function observe(target, cb) {
+        Object.keys(target).forEach(key => {
+            defineReactive(target, key, target[key], cb);
+        });
+    }
+    function defineReactive(target, key, value, cb) {
+        if (typeof value === 'object') observe(value);
+        Object.defineProperty(target, key, {
+            enumerable: true,
+            configurable: true,
+            get: function () {
+                return value;
+            },
+            set: function (newV) {
+                let old = deepCopy(target);
+                value = newV;
+                if (!onceFlag && !closeFlag) {
+                    cb(target, old);
+                }
+                if (options.once) {
+                    onceFlag = true;
+                }
+            },
+        });
+    }
+    function deepCopy(data) {
+        function typeOf(obj) {
+            const toString = Object.prototype.toString;
+            const map = {
+                '[object Boolean]': 'boolean',
+                '[object Number]': 'number',
+                '[object String]': 'string',
+                '[object Function]': 'function',
+                '[object Array]': 'array',
+                '[object Date]': 'date',
+                '[object RegExp]': 'regExp',
+                '[object Undefined]': 'undefined',
+                '[object Null]': 'null',
+                '[object Object]': 'object',
+            };
+            return map[toString.call(obj)];
         }
-      }
-    });
+        const t = typeOf(data);
+        let o;
 
-    // 删除文件夹
-    if (path != `${pkgPath}/easyest`) fs.rmdirSync(path);
-  }
+        if (t === 'array') {
+            o = [];
+        } else if (t === 'object') {
+            o = {};
+        } else {
+            return data;
+        }
+
+        if (t === 'array') {
+            for (let i = 0; i < data.length; i++) {
+                o.push(deepCopy(data[i]));
+            }
+        } else if (t === 'object') {
+            for (let i in data) {
+                o[i] = deepCopy(data[i]);
+            }
+        }
+        return o;
+    }
+    function stopWatch() {
+        closeFlag = true;
+    }
+    observe(target, cb);
+    if (options.immediate && !closeFlag) {
+        cb(target, undefined);
+        if (options.once) {
+            onceFlag = true;
+        }
+    }
+
+    return stopWatch;
+}
+
+// 用a标签下载文件
+const downloadByUrl = (url, filename) => {
+    if (!url) throw new Error('当前没有下载链接');
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    // 使用target="_blank"时，添加rel="noopener noreferrer" 堵住钓鱼安全漏洞 防止新页面window指向之前的页面
+    a.rel = 'noopener noreferrer';
+    document.body.append(a);
+    a.click();
+    setTimeout(() => {
+        a.remove();
+    }, 1000);
+};
+
+// 保留n位小数，默认0位
+const round = (num, n) => {
+    if (!num) {
+        return num;
+    }
+    num = num - 0;
+    n = n || 0;
+    return (Math.round(num * Math.pow(10, n)) / Math.pow(10, n)).toFixed(n);
+};
+
+// 小数转化为百分数，保留n位小数，默认2位
+const toPercent = (num, n) => {
+    if (!num) {
+        return num;
+    }
+    n = n ?? 2;
+    return (round(num, n + 2) * 100).toFixed(n);
+};
+
+// 保留2位字符，不够前面添0
+const beTwo = num => {
+    let str = `${num}`;
+    return Array(3 - str.length).join('0') + str;
+};
+
+// 拖拽
+const drag = el => {
+    if (平台 === 'pc') {
+        el.onmousedown = e => {
+            console.log('按下');
+            //获取鼠标按下位置
+            const disX = e.clientX;
+            const disY = e.clientY;
+            // 获取当前元素的定位信息
+            // 获取到的值带px 正则匹配替换
+            let styL, styT;
+            // 注意在ie中 第一次获取到的值为组件自带50% 移动之后赋值为px
+            // +的作用是将字符串转为数字
+            if (sty.left.includes('%')) {
+                styL = +document.body.clientWidth * (+sty.left.replace(/\%/g, '') / 100);
+                styT = +document.body.clientHeight * (+sty.top.replace(/\%/g, '') / 100);
+            } else {
+                styL = +sty.left.replace(/\px/g, '');
+                styT = +sty.top.replace(/\px/g, '');
+            }
+            document.onmousemove = function (e) {
+                console.log('移动');
+                // 通过事件委托，计算移动的距离
+                const l = e.clientX - disX;
+                const t = e.clientY - disY;
+                let left = l + styL;
+                let top = t + styT;
+                // 移动当前元素
+                el.style.left = `${left}px`;
+                el.style.top = `${top}px`;
+            };
+            //鼠标弹起，移除相应事件
+            document.onmouseup = function (e) {
+                console.log('抬起');
+                document.onmousemove = null;
+                document.onmouseup = null;
+            };
+        };
+    }
+    if (平台 === 'mobile') {
+        el.ontouchstart = e => {
+            console.log('按下');
+            e = e.changedTouches[0];
+            //获取鼠标按下位置
+            const disX = e.clientX;
+            const disY = e.clientY;
+            // 获取当前元素的定位信息
+            // 获取到的值带px 正则匹配替换
+            let styL, styT;
+            // 注意在ie中 第一次获取到的值为组件自带50% 移动之后赋值为px
+            // +的作用是将字符串转为数字
+            if (sty.left.includes('%')) {
+                styL = +document.body.clientWidth * (+sty.left.replace(/\%/g, '') / 100);
+                styT = +document.body.clientHeight * (+sty.top.replace(/\%/g, '') / 100);
+            } else {
+                styL = +sty.left.replace(/\px/g, '');
+                styT = +sty.top.replace(/\px/g, '');
+            }
+            events.push(move);
+            document.addEventListener('touchmove', move, { passive: false });
+            function move(e) {
+                e.preventDefault();
+                window.videoDraging = true;
+                e = e.changedTouches[0];
+                // 通过事件委托，计算移动的距离
+                const l = e.clientX - disX;
+                const t = e.clientY - disY;
+                let left = l + styL;
+                let top = t + styT;
+                // 移动当前元素
+                el.style.left = `${left}px`;
+                el.style.top = `${top}px`;
+            }
+            //鼠标弹起，移除相应事件
+            document.ontouchend = function (e) {
+                console.log('手机抬起');
+                window.videoDraging = false;
+                document.ontouchmove = null;
+                events.forEach(fn => {
+                    document.removeEventListener('touchmove', fn, { passive: true });
+                });
+
+                document.ontouchend = null;
+            };
+        };
+    }
 };
